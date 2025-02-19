@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class AbsentScreen extends StatelessWidget {
-  const AbsentScreen({super.key});
+class page1Screen extends StatelessWidget {
+  const page1Screen({super.key});
 
   @override
   Widget build(BuildContext context) {
