@@ -1,3 +1,4 @@
+import 'package:absensi_app/ui/Reportsummary/report_summary_screen.dart';
 import 'package:absensi_app/ui/absent/absent_screen.dart';
 import 'package:absensi_app/ui/attend/attend_screen.dart';
 import 'package:absensi_app/ui/attendance_history/attendance_history_screen.dart';
@@ -35,7 +36,6 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               children: [
                 Expanded(
-                  // efect when click
                   child: InkWell(
                     highlightColor: Colors.transparent,
                     splashColor: Colors.transparent,
@@ -113,6 +113,35 @@ class HomeScreen extends StatelessWidget {
                         ),
                         Text(
                           "Attendance History",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    highlightColor: Colors.transparent,
+                    splashColor: Colors.transparent,
+                    onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const ReportSummaryScreen()));
+                    },
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image(
+                          image: AssetImage('assets/images/raport_g.png'),
+                          height: 100,
+                          width: 100,
+                        ),
+                        Text(
+                          "Report Summary",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
