@@ -31,7 +31,16 @@ class _ReportSummaryScreenState extends State<ReportSummaryScreen> {
         'onLeave': onLeaveController.text,
         'overtime': overtimeController.text,
       });
+
       showSnackbar("Report successfully saved!", Colors.green);
+
+      // Kembali ke halaman sebelumnya setelah 1 detik
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      });
+
     } catch (e) {
       showSnackbar("Failed to save report: $e", Colors.red);
     }
@@ -42,8 +51,8 @@ class _ReportSummaryScreenState extends State<ReportSummaryScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.info_outline, color: Colors.white),
-            SizedBox(width: 10),
+            const Icon(Icons.info_outline, color: Colors.white),
+            const SizedBox(width: 10),
             Expanded(child: Text(message)),
           ],
         ),
@@ -124,6 +133,18 @@ class _ReportSummaryScreenState extends State<ReportSummaryScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    presentController.dispose();
+    absentController.dispose();
+    permissionController.dispose();
+    lateController.dispose();
+    sickController.dispose();
+    onLeaveController.dispose();
+    overtimeController.dispose();
+    super.dispose();
   }
 }
 
