@@ -2,6 +2,7 @@ import 'package:absensi_app/ui/Reportsummary/report_summary_screen.dart';
 import 'package:absensi_app/ui/absent/absent_screen.dart';
 import 'package:absensi_app/ui/attend/attend_screen.dart';
 import 'package:absensi_app/ui/attendance_history/attendance_history_screen.dart';
+import 'package:absensi_app/ui/raportview/raport_view_screen.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -142,6 +143,35 @@ class HomeScreen extends StatelessWidget {
                         ),
                         Text(
                           "Report Summary",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    highlightColor: Colors.transparent,
+                    splashColor: Colors.transparent,
+                    onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const ReportViewScreen()));
+                    },
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image(
+                          image: AssetImage('assets/images/raport_g.png'),
+                          height: 100,
+                          width: 100,
+                        ),
+                        Text(
+                          "Report History",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
