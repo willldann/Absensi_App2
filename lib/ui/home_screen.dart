@@ -1,6 +1,6 @@
 import 'package:absensi_app/ui/Reportsummary/report_summary_screen.dart';
-import 'package:absensi_app/ui/absent/absent_screen.dart';
 import 'package:absensi_app/ui/attend/attend_screen.dart';
+import 'package:absensi_app/ui/absent/absent_screen.dart';
 import 'package:absensi_app/ui/attendance_history/attendance_history_screen.dart';
 import 'package:absensi_app/ui/raportview/raport_view_screen.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +44,7 @@ class HomeScreen extends StatelessWidget {
                       Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => const page1Screen()));
+                              builder: (context) => const AttendScreen()));
                     },
                     child: const Column(
                       mainAxisAlignment: MainAxisAlignment.center,

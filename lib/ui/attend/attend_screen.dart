@@ -1,134 +1,50 @@
+import 'dart:io'; // Provides access to file and directory operations for working with the filesystem.
+import 'package:absensi_app/ui/attend/camera_screen.dart';
 import 'package:absensi_app/ui/home_screen.dart';
+import 'package:camera/camera.dart'; // Allows access to the device camera for capturing photos or videos.
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dotted_border/dotted_border.dart'; // Provides a widget to create a dotted or dashed border around elements.
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:geocoding/geocoding.dart'; // Converts coordinates into addresses.
+import 'package:geolocator/geolocator.dart'; // Handles retrieving the device’s current location and managing GPS permissions.
+import 'package:intl/intl.dart'; // Used for formatting dates, numbers, and localization support.
 
-class AbsentScreen extends StatefulWidget {
-  const AbsentScreen({super.key});
+class AttendScreen extends StatefulWidget {
+  final XFile? image;
+
+  const AttendScreen({super.key, this.image});
 
   @override
-  State<AbsentScreen> createState() => _AbsentScreenState();
+  State<AttendScreen> createState() => _AttendScreenState(image);
 }
 
-class _AbsentScreenState extends State<AbsentScreen> {
-  var categoriesList = <String>[
-    "Please Choose:",
-    "Others",
-    "Permission",
-    "Sick"
-  ];
+class _AttendScreenState extends State<AttendScreen> {
+  _AttendScreenState(this.image);
 
-  final controllerName = TextEditingController();
+  XFile? image;
+  String strAlamat = "",
+      strDate = "",
+      strTime = "",
+      strDateTime = "",
+      strStatus = "Attend";
+  bool isLoading = false;
   double dLat = 0.0, dLong = 0.0;
+  int dateHours = 0, dateMinutes = 0;
+  final controllerName = TextEditingController();
   final CollectionReference dataCollection =
       FirebaseFirestore.instance.collection('attendance');
 
-  int dateHours = 0, dateMinutes = 0;
-  String dropValueCategories = "Please Choose:";
-  final fromController = TextEditingController();
-  String strAlamat = '', strDate = '', strTime = '', strDateTime = '';
-  final toController = TextEditingController();
-
   @override
   void initState() {
+    handleLocationPermission();
+    setDateTime();
+    setStatusAbsen();
+
+    if (image != null) {
+      isLoading = true;
+      getGeoLocationPosition();
+    }
     super.initState();
-  }
-
-  //show progress dialog
-  showLoaderDialog(BuildContext context) {
-    AlertDialog alert = AlertDialog(
-      content: Row(
-        children: [
-          const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent)),
-          Container(
-            margin: const EdgeInsets.only(left: 20),
-            child: const Text("Please Wait..."),
-          ),
-        ],
-      ),
-    );
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
-  //submit data absent to firebase
-  Future<void> submitAbsen(
-      String nama, String keterangan, String from, String until) async {
-    // Validasi input sebelum mengirim ke Firebase
-    if (nama.isEmpty ||
-        keterangan == "Please Choose:" ||
-        from.isEmpty ||
-        until.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.white),
-            SizedBox(width: 10),
-            Text("Pastikan semua data telah diisi!",
-                style: TextStyle(color: Colors.white))
-          ],
-        ),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ));
-      return;
-    }
-
-    // Menampilkan loader
-    showLoaderDialog(context);
-
-    try {
-      await dataCollection.add({
-        'address': '-',
-        'name': nama,
-        'description': keterangan,
-        'datetime': '$from - $until',
-        'created_at': FieldValue.serverTimestamp(), // Tambahkan timestamp
-      });
-
-      // Tutup loader sebelum menampilkan pesan sukses
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.white),
-            SizedBox(width: 10),
-            Text("Yeay! Attendance Report Succeeded!",
-                style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ));
-
-      // Kembali ke halaman utama
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (context) => const HomeScreen()));
-    } catch (e) {
-      // Jika terjadi error, tutup loader
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(
-                child: Text("Ups, terjadi kesalahan: $e",
-                    style: const TextStyle(color: Colors.white))),
-          ],
-        ),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
   }
 
   @override
@@ -146,7 +62,7 @@ class _AbsentScreenState extends State<AbsentScreen> {
         ),
         centerTitle: true,
         title: const Text(
-          "Permission Request Menu",
+          "Attendance Menu",
           style: TextStyle(
               fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
         ),
@@ -175,12 +91,13 @@ class _AbsentScreenState extends State<AbsentScreen> {
                       SizedBox(
                         width: 12,
                       ),
-                      Icon(Icons.maps_home_work_outlined, color: Colors.white),
+                      Icon(Icons.face_retouching_natural_outlined,
+                          color: Colors.white),
                       SizedBox(
                         width: 12,
                       ),
                       Text(
-                        "Please Fill out the Form!",
+                        "Please make a selfie photo!",
                         style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -189,10 +106,50 @@ class _AbsentScreenState extends State<AbsentScreen> {
                     ],
                   ),
                 ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(10, 20, 0, 20),
+                  child: Text(
+                    "Capture Photo",
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const CameraScreen()));
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(10, 0, 10, 20),
+                    width: size.width,
+                    height: 150,
+                    child: DottedBorder(
+                      radius: const Radius.circular(10),
+                      borderType: BorderType.RRect,
+                      color: Colors.blueAccent,
+                      strokeWidth: 1,
+                      dashPattern: const [5, 5],
+                      child: SizedBox.expand(
+                        child: FittedBox(
+                          child: image != null
+                              ? Image.file(File(image!.path), fit: BoxFit.cover)
+                              : const Icon(
+                                  Icons.camera_enhance_outlined,
+                                  color: Colors.blueAccent,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 20, 10, 20),
+                  padding: const EdgeInsets.all(10),
                   child: TextField(
-                    textInputAction: TextInputAction.next,
+                    textInputAction: TextInputAction.done,
                     keyboardType: TextInputType.text,
                     controller: controllerName,
                     decoration: InputDecoration(
@@ -218,183 +175,40 @@ class _AbsentScreenState extends State<AbsentScreen> {
                 const Padding(
                   padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
                   child: Text(
-                    "Description",
+                    "Your Location",
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.black),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: Colors.blueAccent,
-                          style: BorderStyle.solid,
-                          width: 1),
-                    ),
-                    child: DropdownButton(
-                      dropdownColor: Colors.white,
-                      value: dropValueCategories,
-                      onChanged: (value) {
-                        setState(() {
-                          dropValueCategories = value.toString();
-                        });
-                      },
-                      items: categoriesList.map((value) {
-                        return DropdownMenuItem(
-                          value: value.toString(),
-                          child: Text(value.toString(),
-                              style: const TextStyle(
-                                  fontSize: 14, color: Colors.black)),
-                        );
-                      }).toList(),
-                      icon: const Icon(Icons.arrow_drop_down),
-                      iconSize: 24,
-                      elevation: 16,
-                      style: const TextStyle(color: Colors.black, fontSize: 14),
-                      underline: Container(
-                        height: 2,
-                        color: Colors.transparent,
-                      ),
-                      isExpanded: true,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                  child: Row(children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Text(
-                            "From: ",
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              readOnly: true,
-                              onTap: () async {
-                                DateTime? pickedDate = await showDatePicker(
-                                  builder:
-                                      (BuildContext context, Widget? child) {
-                                    return Theme(
-                                      data: Theme.of(context).copyWith(
-                                        colorScheme: const ColorScheme.light(
-                                            onPrimary: Colors.white,
-                                            onSurface: Colors.white,
-                                            primary: Colors.blueAccent),
-                                        datePickerTheme:
-                                            const DatePickerThemeData(
-                                          headerBackgroundColor:
-                                              Colors.blueAccent,
-                                          backgroundColor:
-                                              Color.fromARGB(255, 0, 0, 0),
-                                          headerForegroundColor: Colors.white,
-                                          surfaceTintColor: Colors.white,
-                                        ),
-                                      ),
-                                      child: child!,
-                                    );
-                                  },
-                                  context: context,
-                                  initialDate: DateTime.now(),
-                                  firstDate: DateTime(1900),
-                                  lastDate: DateTime(9999),
-                                );
-                                if (pickedDate != null) {
-                                  fromController.text = DateFormat('dd/M/yyyy')
-                                      .format(pickedDate);
-                                }
-                              },
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
+                isLoading
+                    ? const Center(
+                        child:
+                            CircularProgressIndicator(color: Colors.blueAccent))
+                    : Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: SizedBox(
+                          height: 5 * 24,
+                          child: TextField(
+                            enabled: false,
+                            maxLines: 5,
+                            decoration: InputDecoration(
+                              alignLabelWithHint: true,
+                              disabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide:
+                                    const BorderSide(color: Colors.blueAccent),
                               ),
-                              controller: fromController,
-                              decoration: const InputDecoration(
-                                contentPadding: EdgeInsets.all(8),
-                                hintText: "Starting From",
-                                hintStyle:
-                                    TextStyle(color: Colors.grey, fontSize: 16),
-                              ),
+                              hintText: strAlamat,
+                              hintStyle: const TextStyle(
+                                  fontSize: 14, color: Colors.grey),
+                              fillColor: Colors.transparent,
+                              filled: true,
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(
-                      width: 14,
-                    ),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Text(
-                            "Until: ",
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              readOnly: true,
-                              onTap: () async {
-                                DateTime? pickedDate = await showDatePicker(
-                                    builder:
-                                        (BuildContext context, Widget? widget) {
-                                      return Theme(
-                                        data: Theme.of(context).copyWith(
-                                          colorScheme: const ColorScheme.light(
-                                              onPrimary: Colors.white,
-                                              onSurface: Colors.white,
-                                              primary: Colors.blueAccent),
-                                          datePickerTheme:
-                                              const DatePickerThemeData(
-                                            headerBackgroundColor:
-                                                Colors.blueAccent,
-                                            backgroundColor:
-                                                Color.fromARGB(255, 0, 0, 0),
-                                            headerForegroundColor: Colors.white,
-                                            surfaceTintColor: Colors.white,
-                                          ),
-                                        ),
-                                        child: widget!,
-                                      );
-                                    },
-                                    context: context,
-                                    initialDate: DateTime.now(),
-                                    firstDate: DateTime(1900),
-                                    lastDate: DateTime(9999));
-                                if (pickedDate != null) {
-                                  toController.text = DateFormat('dd/M/yyyy')
-                                      .format(pickedDate);
-                                }
-                              },
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
-                              ),
-                              controller: toController,
-                              decoration: const InputDecoration(
-                                contentPadding: EdgeInsets.all(8),
-                                hintText: "Until",
-                                hintStyle:
-                                    TextStyle(color: Colors.grey, fontSize: 16),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ]),
-                ),
                 Container(
                     alignment: Alignment.center,
                     margin: const EdgeInsets.all(30),
@@ -414,10 +228,8 @@ class _AbsentScreenState extends State<AbsentScreen> {
                             splashColor: Colors.blue,
                             borderRadius: BorderRadius.circular(20),
                             onTap: () {
-                              if (controllerName.text.isEmpty ||
-                                  dropValueCategories == "Please Choose:" ||
-                                  fromController.text.isEmpty ||
-                                  toController.text.isEmpty) {
+                              if (image == null ||
+                                  controllerName.text.isEmpty) {
                                 ScaffoldMessenger.of(context)
                                     .showSnackBar(const SnackBar(
                                   content: Row(
@@ -427,27 +239,22 @@ class _AbsentScreenState extends State<AbsentScreen> {
                                         color: Colors.white,
                                       ),
                                       SizedBox(width: 10),
-                                      Text(
-                                        "Ups, please fill the form!",
-                                        style: TextStyle(color: Colors.white),
-                                      )
+                                      Text("Please Fill all the forms!",
+                                          style: TextStyle(color: Colors.white))
                                     ],
                                   ),
-                                  backgroundColor: Colors.blueAccent,
+                                  backgroundColor: Colors.blueGrey,
                                   shape: StadiumBorder(),
                                   behavior: SnackBarBehavior.floating,
                                 ));
                               } else {
-                                submitAbsen(
-                                    controllerName.text.toString(),
-                                    dropValueCategories.toString(),
-                                    fromController.text,
-                                    toController.text);
+                                submitAbsen(strAlamat,
+                                    controllerName.text.toString(), strStatus);
                               }
                             },
                             child: const Center(
                               child: Text(
-                                "Make a Request",
+                                "Report Now",
                                 style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold),
@@ -461,5 +268,231 @@ class _AbsentScreenState extends State<AbsentScreen> {
             )),
       ),
     );
+  }
+
+  //get realtime location
+  Future<void> getGeoLocationPosition() async {
+    // ignore: deprecated_member_use
+    Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low);
+    setState(() {
+      isLoading = false;
+      getAddressFromLongLat(position);
+    });
+  }
+
+  //get address by lat long
+  Future<void> getAddressFromLongLat(Position position) async {
+    List<Placemark> placemarks =
+        await placemarkFromCoordinates(position.latitude, position.longitude);
+    print(placemarks);
+    Placemark place = placemarks[0];
+    setState(() {
+      dLat = double.parse('${position.latitude}');
+      dLat = double.parse('${position.longitude}');
+      strAlamat =
+          "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+    });
+  }
+
+  //permission location
+  Future<bool> handleLocationPermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              Icons.location_off,
+              color: Colors.white,
+            ),
+            SizedBox(width: 10),
+            Text(
+              "Location services are disabled. Please enable the services.",
+              style: TextStyle(color: Colors.white),
+            )
+          ],
+        ),
+        backgroundColor: Colors.blueGrey,
+        shape: StadiumBorder(),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                Icons.location_off,
+                color: Colors.white,
+              ),
+              SizedBox(width: 10),
+              Text(
+                "Location permission denied.",
+                style: TextStyle(color: Colors.white),
+              )
+            ],
+          ),
+          backgroundColor: Colors.blueGrey,
+          shape: StadiumBorder(),
+          behavior: SnackBarBehavior.floating,
+        ));
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              Icons.location_off,
+              color: Colors.white,
+            ),
+            SizedBox(width: 10),
+            Text(
+              "Location permission denied forever, we cannot access.",
+              style: TextStyle(color: Colors.white),
+            )
+          ],
+        ),
+        backgroundColor: Colors.blueGrey,
+        shape: StadiumBorder(),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return false;
+    }
+    return true;
+  }
+
+  //show progress dialog
+  showLoaderDialog(BuildContext context) {
+    AlertDialog alert = AlertDialog(
+      content: Row(
+        children: [
+          const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blueGrey)),
+          Container(
+            margin: const EdgeInsets.only(left: 20),
+            child: const Text("Checking the data..."),
+          ),
+        ],
+      ),
+    );
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  //check format date time
+  void setDateTime() async {
+    var dateNow = DateTime.now();
+    var dateFormat = DateFormat('dd MMMM yyyy');
+    var dateTime = DateFormat('HH:mm:ss');
+    var dateHour = DateFormat('HH');
+    var dateMinute = DateFormat('mm');
+
+    setState(() {
+      strDate = dateFormat.format(dateNow);
+      strTime = dateTime.format(dateNow);
+      strDateTime = "$strDate | $strTime";
+
+      dateHours = int.parse(dateHour.format(dateNow));
+      dateMinutes = int.parse(dateMinute.format(dateNow));
+    });
+  }
+
+  //check status absent
+  void setStatusAbsen() {
+    if (dateHours < 8 || (dateHours == 8 && dateMinutes <= 30)) {
+      strStatus = "Attend";
+    } else if ((dateHours > 8 && dateHours < 18) ||
+        (dateHours == 8 && dateMinutes >= 31)) {
+      strStatus = "Late";
+    } else {
+      strStatus = "Leave";
+    }
+  }
+
+  //submit data absent to firebase
+  Future<void> submitAbsen(String alamat, String nama, String status) async {
+    showLoaderDialog(context);
+    dataCollection.add({
+      'address': alamat,
+      'name': nama,
+      'description': status,
+      'datetime': strDateTime
+    }).then((result) {
+      setState(() {
+        Navigator.of(context).pop();
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 10),
+                Text("Yeay! Attendance Report Succeeded!",
+                    style: TextStyle(color: Colors.white))
+              ],
+            ),
+            backgroundColor: Colors.orangeAccent,
+            shape: StadiumBorder(),
+            behavior: SnackBarBehavior.floating,
+          ));
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()));
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text("Ups, $e",
+                      style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.blueGrey,
+            shape: const StadiumBorder(),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      });
+    }).catchError((error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.error_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text("Ups, $error",
+                    style: const TextStyle(color: Colors.white)))
+          ],
+        ),
+        backgroundColor: Colors.blueGrey,
+        shape: const StadiumBorder(),
+        behavior: SnackBarBehavior.floating,
+      ));
+      Navigator.of(context).pop();
+    });
   }
 }
